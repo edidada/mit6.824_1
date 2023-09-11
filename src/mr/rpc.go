@@ -24,13 +24,21 @@ type ExampleReply struct {
 
 // Add your RPC definitions here.
 
-type RPCArgs struct {
-	X int
+type RPCArgs struct {//发送完成请求相关
+	WorkMode int //0代表map任务，1代表reduce任务
+	//Number int //mr-x-y的x
+	FinishCheck int //任务是否完成
 }
 
 type RPCReply struct {
+
+	//map任务
 	Number int
 	Filename string
+	NReduce int
+	WorkMode int //0代表map任务，1代表reduce任务
+	//reduce任务
+	NReduceNumber int
 }
 
 // Cook up a unique-ish UNIX-domain socket name

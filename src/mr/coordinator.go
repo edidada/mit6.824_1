@@ -6,23 +6,38 @@ import "os"
 import "net/rpc"
 import "net/http"
 import "sync"
+//import "fmt"
+import "time"
 
 type Coordinator struct {
 	// Your definitions here.
-
+	finishMapNumber int //已经完成了多少个map任务
+	finishReduceNumber int //已经完成了多少个reduce任务
+	nReduce int //分散的数量
 	// map
-	mapNumber int
-	files []string
-	mapQueue TaskQueue
+	mapNumber int //总共的文件数量-对应几个worker
+	files []string //对应的文件名
+	mapQueue TaskQueue //map的任务队列
+	//会生成mapNumber*nReduce个中间文件
+
+	// reduce
+	canReduce int //可以发送reduce任务了
+	reduceQueue TaskQueue //map的任务队列
 }
 
-// Task 是一个任务类，包含一个 int 和一个 string 字段
+// Task 任务类
 type Task struct {
-	Number     int
+	WorkMode int //
+	// map任务
+	Number     int		// mr-X-Y中的X，代表处理几个文件
+	NReduce int         //基本是全局在传
 	Filename string
+
+	// post任务
+	NReduceNumber int // mr-X-Y中的Y，处理所有Y结尾的文件，来reduce
 }
 
-// TaskQueue 是一个带锁的任务队列
+// TaskQueue 带锁的任务队列
 type TaskQueue struct {
 	queue []Task
 	mu    sync.Mutex
@@ -63,13 +78,55 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 	return nil
 }
 
-func (c *Coordinator) GetMapTask(args *RPCArgs, reply *RPCReply) error {
-	task, _ := c.mapQueue.Pop()
-	reply.Number = task.Number
-	reply.Filename = task.Filename
-	return nil
+func (c *Coordinator) GetTask(args *RPCArgs, reply *RPCReply) error {
+	//fmt.Printf("c.canReduce=%v\n",c.canReduce)
+	if c.canReduce==0 { //发送map任务
+		task, ok := c.mapQueue.Pop()
+		if !ok {
+			return nil
+		}
+		reply.Number = task.Number
+		reply.Filename = task.Filename
+		reply.NReduce = task.NReduce
+		//fmt.Printf("map Task send! %v\n",reply.WorkMode)
+		reply.WorkMode = 0
+		return nil
+	} else { //发送reduce任务
+		task, ok := c.reduceQueue.Pop()
+		if !ok {
+			return nil
+		}
+		reply.Number = task.Number
+		reply.NReduceNumber = task.NReduceNumber
+		reply.NReduce = task.NReduce
+		reply.WorkMode = 1
+		//fmt.Printf("reduce Task send!\n")
+		return nil
+	}
 }
 
+func (c *Coordinator) PostTask(args *RPCArgs, reply *RPCReply) error {
+	//fmt.Printf("post!\n")
+	if args.FinishCheck==1 && args.WorkMode==0 {
+		c.finishMapNumber++
+		if c.finishMapNumber==c.mapNumber{
+			//可以写成chan 这样就能放到主函数里操作了，这里简单点写实现
+			for i := 0; i < c.nReduce; i++ {
+				task:=Task{
+					WorkMode:1,
+					NReduceNumber:i,
+					NReduce:c.nReduce,
+					Number : c.mapNumber,
+				}
+				c.reduceQueue.Push(task)
+			}
+			c.canReduce=1
+			//fmt.Printf("c.canReduce=%v\n",c.canReduce)
+		}
+	}
+	
+	return nil
+}
 //
 // start a thread that listens for RPCs from worker.go
 //
@@ -94,7 +151,7 @@ func (c *Coordinator) Done() bool {
 	ret := false
 
 	// Your code here.
-
+	time.Sleep(30 * time.Second)
 
 	return ret
 }
@@ -109,12 +166,22 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		files:files,
 		mapNumber:len(files),
 		mapQueue:TaskQueue{},
+		nReduce:nReduce,
+
+		canReduce:0, // map任务上锁
+		reduceQueue:TaskQueue{},
+
+		finishMapNumber:0,
+		finishReduceNumber:0,
 	}
+
 
 	for index, file := range files {
 		task:=Task{
+			WorkMode:0,
 			Number:index,
 			Filename:file,
+			NReduce:nReduce,
 		}
         c.mapQueue.Push(task)
     }

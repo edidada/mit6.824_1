@@ -8,7 +8,19 @@ coordinator:
 
 任务：第几个任务，哪一个文件，nReduce参数
 
-任务队列，任务是否完成
+任务队列：队列存任务，锁->发给worker没完成的还要重新加入队列
+
+任务完成标记
+
+worker:
+
+处理map任务
+
+处理reduce任务
+
+处理完任务发送一个消息代表任务完成
+
+注：测试脚本wait -n运行不了，修改成wait
 
 ```mermaid
 graph LR

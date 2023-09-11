@@ -4,8 +4,11 @@ import "fmt"
 import "log"
 import "net/rpc"
 import "hash/fnv"
-
-
+import "os"
+import "io/ioutil"
+import "encoding/json"
+//import "time"
+import "sort"
 //
 // Map functions return a slice of KeyValue.
 //
@@ -14,6 +17,13 @@ type KeyValue struct {
 	Value string
 }
 
+// for sorting by key.
+type ByKey []KeyValue
+
+// for sorting by key.
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 //
 // use ihash(key) % NReduce to choose the reduce
 // task number for each KeyValue emitted by Map.
@@ -35,10 +45,131 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
-	args := RPCArgs{}
-	reply := RPCReply{}
-	_ = call("Coordinator.GetMapTask", &args, &reply)
-	fmt.Printf("reply.filename %v\n", reply.Filename)
+	for{
+		args := RPCArgs{}
+		reply := RPCReply{}
+		_ = call("Coordinator.GetTask", &args, &reply)
+		// 判断还能再改一下，这里是请求不到任何任务了
+		if reply.WorkMode == 0 && reply.NReduce==0{ 
+			//fmt.Printf("no task\n")
+			//time.Sleep(time.Duration(10)*time.Second)
+			break
+		}
+		//fmt.Printf("reply.WorkMode %v\n", reply.WorkMode)
+
+		if reply.WorkMode == 0{
+			//处理map任务
+			//fmt.Printf("reply.filename %v %v %v\n", reply.Number,reply.NReduce,reply.Filename)
+
+			//
+			intermediate := []KeyValue{}
+			file, err := os.Open(reply.Filename)
+			if err != nil {
+				log.Fatalf("cannot open %v", reply.Filename)
+			}
+			content, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatalf("cannot read %v", reply.Filename)
+			}
+			file.Close()
+
+			kva := mapf(reply.Filename, string(content))
+			intermediate = append(intermediate, kva...)
+
+			HashKv := make([][]KeyValue, reply.NReduce)
+			for _, v := range(intermediate) {
+				// if(v.Key=="Thatcher"){
+				// 	fmt.Printf("%v\n",ihash(v.Key) % reply.NReduce)
+				// }
+				index := ihash(v.Key) % reply.NReduce
+				HashKv[index] = append(HashKv[index], v)
+			}
+
+			for i := 0; i < reply.NReduce; i++ {
+				oname := fmt.Sprintf("mr-%d-%d", reply.Number, i)
+				ofile, err := os.Create(oname)
+				if err != nil {
+					log.Fatal("create file failed:", err)
+				}
+				enc := json.NewEncoder(ofile)
+				for _, kv := range(HashKv[i]) {
+					err := enc.Encode(kv)
+					if err != nil {
+						log.Fatal("encode failed:", err)
+					}
+				}
+				ofile.Close()
+			}
+			args.WorkMode=0
+			args.FinishCheck=1
+			//args.Number=reply.Number
+			_ = call("Coordinator.PostTask", &args, &reply)
+		}else {
+			//处理reduce任务
+			//fmt.Printf("reply.NReduceNumber %v %v\n", reply.NReduceNumber,reply.NReduce)
+			// Reduce
+			var Filenames []string
+			for i := 0; i < reply.Number; i++ {
+				file:=fmt.Sprintf("mr-%d-%d", i,reply.NReduceNumber)
+				Filenames=append(Filenames,file)
+			}
+
+			kva := make([]KeyValue, 0)
+
+			for _, filename := range Filenames {
+				file, err := os.Open(filename)
+				if err != nil {
+					log.Fatalf("cannot open file %v", filename)
+				}
+				dec := json.NewDecoder(file)
+
+				for {
+					var kv KeyValue
+					if err := dec.Decode(&kv); err != nil {
+						break
+					}
+					kva = append(kva, kv)
+				}
+			}
+
+			sort.Sort(ByKey(kva))
+
+			oname := fmt.Sprintf("mr-out-%d", reply.NReduceNumber)
+			ofile, err := os.Create(oname)
+
+			for i := 0; i < len(kva); {
+				if err != nil {
+					log.Fatal("create file failed:", err)
+				}
+
+				j := i + 1
+				for j < len(kva) && kva[j].Key == kva[i].Key {
+					j++
+				}
+				values := []string{}
+				for k := i; k < j; k++ {
+					values = append(values, kva[k].Value)
+				}
+				output := reducef(kva[i].Key, values)
+
+				// this is the correct format for each line of Reduce output.
+				fmt.Fprintf(ofile, "%v %v\n", kva[i].Key, output)
+
+				i = j
+				
+			}
+			ofile.Close()
+
+			
+			
+			args.WorkMode=1
+			args.FinishCheck=1
+			//args.Number=reply.Number
+			_ = call("Coordinator.PostTask", &args, &reply)
+
+		}
+	}
+
 }
 
 //
