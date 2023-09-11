@@ -5,13 +5,52 @@ import "net"
 import "os"
 import "net/rpc"
 import "net/http"
-
+import "sync"
 
 type Coordinator struct {
 	// Your definitions here.
 
+	// map
+	mapNumber int
+	files []string
+	mapQueue TaskQueue
 }
 
+// Task 是一个任务类，包含一个 int 和一个 string 字段
+type Task struct {
+	Number     int
+	Filename string
+}
+
+// TaskQueue 是一个带锁的任务队列
+type TaskQueue struct {
+	queue []Task
+	mu    sync.Mutex
+}
+
+// NewTaskQueue 创建一个新的任务队列
+func NewTaskQueue() *TaskQueue {
+	return &TaskQueue{}
+}
+
+// Push 将任务添加到队列
+func (q *TaskQueue) Push(task Task) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.queue = append(q.queue, task)
+}
+
+// Pop 从队列中取出任务
+func (q *TaskQueue) Pop() (Task, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.queue) == 0 {
+		return Task{}, false
+	}
+	task := q.queue[0]
+	q.queue = q.queue[1:]
+	return task, true
+}
 // Your code here -- RPC handlers for the worker to call.
 
 //
@@ -24,6 +63,12 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 	return nil
 }
 
+func (c *Coordinator) GetMapTask(args *RPCArgs, reply *RPCReply) error {
+	task, _ := c.mapQueue.Pop()
+	reply.Number = task.Number
+	reply.Filename = task.Filename
+	return nil
+}
 
 //
 // start a thread that listens for RPCs from worker.go
@@ -60,8 +105,19 @@ func (c *Coordinator) Done() bool {
 // nReduce is the number of reduce tasks to use.
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	c := Coordinator{}
+	c := Coordinator{
+		files:files,
+		mapNumber:len(files),
+		mapQueue:TaskQueue{},
+	}
 
+	for index, file := range files {
+		task:=Task{
+			Number:index,
+			Filename:file,
+		}
+        c.mapQueue.Push(task)
+    }
 	// Your code here.
 
 

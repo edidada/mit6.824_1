@@ -35,7 +35,10 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
-
+	args := RPCArgs{}
+	reply := RPCReply{}
+	_ = call("Coordinator.GetMapTask", &args, &reply)
+	fmt.Printf("reply.filename %v\n", reply.Filename)
 }
 
 //

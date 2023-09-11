@@ -2,6 +2,14 @@
 
 ## lab1 MapReduce
 
+coordinator:
+
+预处理模块：处理文件信息，初始化任务队列
+
+任务：第几个任务，哪一个文件，nReduce参数
+
+任务队列，任务是否完成
+
 ```mermaid
 graph LR
     F1 --读取文件--> C
