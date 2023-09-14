@@ -158,7 +158,7 @@ bash test-mr-many.sh 10
 
 2.处理map任务：
 
-假设任务编号为x∈(0~n-1)，生成mr-x-y，y∈(0~nReduce-1)个中间文件(如mr-x-0,mr-x-1...)
+假设任务编号为x∈（0~n-1），生成mr-x-y，y∈（0~nReduce-1）个中间文件(如mr-x-0,mr-x-1...)
 
 其中y的生成法则是根据ihash(key)%nReduce而定的
 
@@ -225,6 +225,12 @@ graph LR
     O2[output2]
 ```
 
-### 可能的坑
+注：所有的map阶段完成后，才执行reduce阶段
 
-待完善……
+注：worker1和worker2和workera可以是同一个work进程，但是请求到了不同的任务（不同时），也是允许的
+
+注：生成中间文件mr-x-y（严格来说应该从0-0开始），x的范围是（0~文件数-1），y的范围是（0~nReduce-1）
+
+## 可能的坑
+
+极度推荐看任务书的Hints
