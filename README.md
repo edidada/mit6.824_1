@@ -130,7 +130,7 @@ bash test-mr-many.sh 10
 
 补全coordinator.go/worker.go/rpc.go的代码
 
-生成mr-out-0,mr-out-1,mr-out-2...mr-out-nReduce文件
+生成mr-out-0，mr-out-1，mr-out-2...mr-out-nReduce-1共nReduce个文件
 
 下标通过哈希区分，对应的字符串写入对应的文件里。哈希函数在worker.go里
 
@@ -158,13 +158,13 @@ bash test-mr-many.sh 10
 
 2.处理map任务：
 
-假设任务编号为x∈（0~n-1），生成mr-x-y，y∈（0~nReduce-1）个中间文件(如mr-x-0,mr-x-1...)
+假设任务编号为x（x范围0到n-1），生成mr-x-y个中间文件(如mr-x-0,mr-x-1...)，y范围0到nReduce-1
 
 其中y的生成法则是根据ihash(key)%nReduce而定的
 
 3.处理reduce任务
 
-假设任务编号是y，将所有的mr-x-y，x∈(0~n-1)中间文件（如mr-0-y,mr-1-y...）整合成mr-out-y文件里
+假设任务编号是y，将所有的mr-x-y（x范围0到n-1）中间文件（如mr-0-y,mr-1-y...）整合成mr-out-y文件里
 
 4.通过rpc通知coordinator任务完成
 
@@ -229,7 +229,35 @@ graph LR
 
 注：worker1和worker2和workera可以是同一个work进程，但是请求到了不同的任务（不同时），也是允许的
 
-注：生成中间文件mr-x-y（严格来说应该从0-0开始），x的范围是（0~文件数-1），y的范围是（0~nReduce-1）
+注：生成中间文件mr-x-y（严格来说应该从0-0开始），x的范围是0到文件数-1，y的范围是0到nReduce-1
+
+### coordinator流程图
+
+```mermaid
+graph TD
+    coordinator开始-->预处理map任务
+    预处理map任务-->预处理reduce任务
+    预处理reduce任务-->等待work请求map任务
+    等待work请求map任务-->发送map任务
+    发送map任务--有map任务-->等待work请求map任务
+    发送map任务--接收到post且无map任务-->等待work请求reduce任务
+    等待work请求reduce任务-->发送reduce任务
+    发送reduce任务--有reduce任务-->等待work请求reduce任务
+    发送reduce任务--接收到post且无reduce任务-->coordinator结束
+
+    发送map任务--携程：work未发送post-->task写回map任务
+    task写回map任务-->等待work请求map任务
+
+    发送reduce任务--携程：work未发送post-->task写回reduce任务
+    task写回reduce任务-->等待work请求reduce任务
+
+    worker1--请求任务-->等待work请求map任务
+    worker2--请求任务-->等待work请求map任务
+    worker3--请求任务-->等待work请求map任务
+    worker4--请求任务-->等待work请求reduce任务
+    worker5--请求任务-->等待work请求reduce任务
+    worker6--请求任务-->等待work请求reduce任务
+```
 
 ## 可能的坑
 
