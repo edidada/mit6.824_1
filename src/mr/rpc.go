@@ -28,6 +28,7 @@ type RPCArgs struct {//发送完成请求相关
 	WorkMode int //0代表map任务，1代表reduce任务
 	//Number int //mr-x-y的x
 	FinishCheck int //任务是否完成
+	Index int
 }
 
 type RPCReply struct {

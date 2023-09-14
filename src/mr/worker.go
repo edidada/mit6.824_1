@@ -7,7 +7,7 @@ import "hash/fnv"
 import "os"
 import "io/ioutil"
 import "encoding/json"
-//import "time"
+import "time"
 import "sort"
 //
 // Map functions return a slice of KeyValue.
@@ -48,11 +48,18 @@ func Worker(mapf func(string, string) []KeyValue,
 	for{
 		args := RPCArgs{}
 		reply := RPCReply{}
-		_ = call("Coordinator.GetTask", &args, &reply)
+		ok	:= call("Coordinator.GetTask", &args, &reply)
+		if !ok {
+			//fmt.Printf("work exit\n")
+			break
+		}
+
 		// 判断还能再改一下，这里是请求不到任何任务了
-		if reply.WorkMode == 0 && reply.NReduce==0{ 
-			//fmt.Printf("no task\n")
-			//time.Sleep(time.Duration(10)*time.Second)
+		if reply.WorkMode == 2{ //请求失败 任务队列为空
+			time.Sleep(time.Second)
+			continue
+		// 	break
+		}else if reply.WorkMode == -1{
 			break
 		}
 		//fmt.Printf("reply.WorkMode %v\n", reply.WorkMode)
@@ -86,28 +93,41 @@ func Worker(mapf func(string, string) []KeyValue,
 			}
 
 			for i := 0; i < reply.NReduce; i++ {
-				oname := fmt.Sprintf("mr-%d-%d", reply.Number, i)
-				ofile, err := os.Create(oname)
+				tempFile, err := ioutil.TempFile("", "temp-")
+				defer tempFile.Close()
+				defer os.Remove(tempFile.Name())
+				// oname := fmt.Sprintf("mr-%d-%d", reply.Number, i)
+				// ofile, err := os.Create(oname)
 				if err != nil {
 					log.Fatal("create file failed:", err)
 				}
-				enc := json.NewEncoder(ofile)
+				enc := json.NewEncoder(tempFile)
+				//enc := json.NewEncoder(ofile)
 				for _, kv := range(HashKv[i]) {
 					err := enc.Encode(kv)
 					if err != nil {
 						log.Fatal("encode failed:", err)
 					}
 				}
-				ofile.Close()
+				os.Rename(tempFile.Name(), fmt.Sprintf("mr-%d-%d", reply.Number, i))
+				//ofile.Close()
 			}
+
+			time.Sleep(time.Second)
+			args := RPCArgs{}
 			args.WorkMode=0
 			args.FinishCheck=1
+			args.Index=reply.Number
 			//args.Number=reply.Number
-			_ = call("Coordinator.PostTask", &args, &reply)
+			ok := call("Coordinator.PostTask", &args, &reply)
+			if !ok {
+				break
+			}
 		}else {
 			//处理reduce任务
 			//fmt.Printf("reply.NReduceNumber %v %v\n", reply.NReduceNumber,reply.NReduce)
 			// Reduce
+			//fmt.Printf("reply.NReduceNumber=%v\n",reply.NReduceNumber)
 			var Filenames []string
 			for i := 0; i < reply.Number; i++ {
 				file:=fmt.Sprintf("mr-%d-%d", i,reply.NReduceNumber)
@@ -134,8 +154,11 @@ func Worker(mapf func(string, string) []KeyValue,
 
 			sort.Sort(ByKey(kva))
 
-			oname := fmt.Sprintf("mr-out-%d", reply.NReduceNumber)
-			ofile, err := os.Create(oname)
+			tempFile, err := ioutil.TempFile("", "temp-")
+			defer tempFile.Close()
+   			defer os.Remove(tempFile.Name())
+			// oname := fmt.Sprintf("mr-out-%d", reply.NReduceNumber)
+			// ofile, err := os.Create(oname)
 
 			for i := 0; i < len(kva); {
 				if err != nil {
@@ -153,21 +176,27 @@ func Worker(mapf func(string, string) []KeyValue,
 				output := reducef(kva[i].Key, values)
 
 				// this is the correct format for each line of Reduce output.
-				fmt.Fprintf(ofile, "%v %v\n", kva[i].Key, output)
-
+				//fmt.Fprintf(ofile, "%v %v\n", kva[i].Key, output)
+				fmt.Fprintf(tempFile, "%v %v\n", kva[i].Key, output)
 				i = j
 				
 			}
-			ofile.Close()
-
+			os.Rename(tempFile.Name(), fmt.Sprintf("mr-out-%d", reply.NReduceNumber))
+			//ofile.Close()
 			
-			
+			time.Sleep(time.Second)
+			args := RPCArgs{}
 			args.WorkMode=1
 			args.FinishCheck=1
+			args.Index=reply.NReduceNumber
 			//args.Number=reply.Number
-			_ = call("Coordinator.PostTask", &args, &reply)
-
+			//fmt.Printf("finish %v\n",reply.NReduceNumber)
+			ok := call("Coordinator.PostTask", &args, &reply)
+			if !ok {
+				break
+			}
 		}
+		
 	}
 
 }

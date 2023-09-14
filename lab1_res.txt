@@ -1,0 +1,239 @@
+[root@localhost main]# bash test-mr-many.sh 10
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:00:13 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:00:24 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:00:36 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:00:52 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:01:10 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:01:35 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:01:47 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:02:43 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:02:53 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:03:06 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:03:23 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:03:42 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:04:08 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:04:20 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:05:20 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:05:30 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:05:43 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:05:59 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:06:17 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:06:43 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:06:55 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:08:58 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:09:08 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:09:21 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:09:37 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:09:56 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:10:21 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:10:33 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:11:34 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:11:45 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:11:58 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:12:14 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:12:32 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:12:58 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:13:10 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:14:16 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:14:26 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:14:39 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+2023/09/14 17:15:25 dialing:dial unix /var/tmp/5840-mr-0: connect: connection refused
+2023/09/14 17:15:25 dialing:dial unix /var/tmp/5840-mr-0: connect: connection refused
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:15:25 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:15:43 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:16:08 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+2023/09/14 17:16:54 dialing:dial unix /var/tmp/5840-mr-0: connect: connection refused
+2023/09/14 17:16:54 dialing:dial unix /var/tmp/5840-mr-0: connect: connection refused
+2023/09/14 17:16:54 dialing:dial unix /var/tmp/5840-mr-0: connect: connection refused
+sort: cannot read: mr-out*: No such file or directory
+sort: cannot read: mr-out*: No such file or directory
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:16:54 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:17:52 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:18:03 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:18:15 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:18:31 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:18:49 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:19:14 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:19:26 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:20:24 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:20:34 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:20:47 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:21:04 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:21:23 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:21:48 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:22:00 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:22:58 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:23:09 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:23:22 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:23:39 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:23:57 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:24:23 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:24:35 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+build 6.5840/main: cannot load 6.5840/diskv: cannot find module providing package 6.5840/diskv
+*** Starting wc test.
+2023/09/14 17:25:24 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- wc test: PASS
+*** Starting indexer test.
+2023/09/14 17:25:34 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- indexer test: PASS
+*** Starting map parallelism test.
+2023/09/14 17:25:46 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- map parallelism test: PASS
+*** Starting reduce parallelism test.
+2023/09/14 17:26:02 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- reduce parallelism test: PASS
+*** Starting job count test.
+2023/09/14 17:26:20 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- job count test: PASS
+*** Starting early exit test.
+2023/09/14 17:26:46 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- early exit test: PASS
+*** Starting crash test.
+2023/09/14 17:26:58 rpc.Register: method "Done" has 1 input parameters; needs exactly three
+--- crash test: PASS
+*** PASSED ALL TESTS
+*** PASSED ALL 10 TESTING TRIALS
