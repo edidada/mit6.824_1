@@ -168,9 +168,17 @@ bash test-mr-many.sh 10
 
 4.通过rpc通知coordinator任务完成
 
-## 参考文献
+## 学习参考
 
-lab1任务书：https://pdos.csail.mit.edu/6.824/labs/lab-mr.html
+lab1任务书（必看，根据这个来写的）：https://pdos.csail.mit.edu/6.824/labs/lab-mr.html
+
+提供一份任务书的翻译（但是推荐自己看原文）：https://blog.csdn.net/hh1986170901/article/details/120262227
+
+有图片的教程，帮助理解（没详细看过）：https://blog.csdn.net/qq_34872231/article/details/130243535
+
+视频理解，可能有一定帮助：https://www.bilibili.com/video/BV1rS4y1n7PC
+
+能提供一定帮助：https://huaweicloud.csdn.net/63356224d3efff3090b54e4e.html
 
 ## 流程图
 
@@ -265,3 +273,7 @@ graph TD
 极度推荐看任务书的Hints
 
 十次测试都能通过一般就比较稳定了，一次大概要三分钟
+
+## 源码
+
+https://gitee.com/jiangnan1634605411/mit6.824
