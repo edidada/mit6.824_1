@@ -268,9 +268,9 @@ func periodicCheck(queue *TaskQueue) {
             for _, task := range queue.queue {
                 // 执行任务的检查或其他操作
 				cnt++
-                fmt.Printf("检查任务：%v %v %v\n", task.WorkMode,task.Number,task.NReduceNumber)
+                fmt.Printf("test: %v %v %v\n", task.WorkMode,task.Number,task.NReduceNumber)
             }
-			fmt.Printf("任务数量：%v\n",cnt )
+			fmt.Printf("test number:%v\n",cnt )
             queue.mu.Unlock()
         }
     }

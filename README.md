@@ -244,21 +244,24 @@ graph TD
     等待work请求reduce任务-->发送reduce任务
     发送reduce任务--有reduce任务-->等待work请求reduce任务
     发送reduce任务--接收到post且无reduce任务-->coordinator结束
+```
 
-    发送map任务--携程：work未发送post-->task写回map任务
-    task写回map任务-->等待work请求map任务
+注：每次在发送任务的时候，同时会起一个协程，确认是否有post返回
 
-    发送reduce任务--携程：work未发送post-->task写回reduce任务
-    task写回reduce任务-->等待work请求reduce任务
+### worker流程图
 
-    worker1--请求任务-->等待work请求map任务
-    worker2--请求任务-->等待work请求map任务
-    worker3--请求任务-->等待work请求map任务
-    worker4--请求任务-->等待work请求reduce任务
-    worker5--请求任务-->等待work请求reduce任务
-    worker6--请求任务-->等待work请求reduce任务
+```mermaid
+graph TD
+    worker开始-->向coordinator请求任务
+    向coordinator请求任务--map任务-->调用map处理生成中间文件
+    向coordinator请求任务--reduce任务-->调用reduce生成最终文件
+    调用map处理生成中间文件-->通知coordinator任务完成
+    调用reduce生成最终文件-->通知coordinator任务完成
+    通知coordinator任务完成-->worker结束
 ```
 
 ## 可能的坑
 
 极度推荐看任务书的Hints
+
+十次测试都能通过一般就比较稳定了，一次大概要三分钟
