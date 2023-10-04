@@ -277,3 +277,130 @@ graph TD
 ## 源码
 
 https://gitee.com/jiangnan1634605411/mit6.824
+
+# lab2A Raft-Election
+
+2A要完成的实验主要是raft的基础架构，核心就是三大状态（follower，candidate，leader）的切换
+
+
+## 任务说明
+
+搭建raft集群，实现基础的超时-选举功能
+
+一共有三个测试：
+
+1.是否能选出一个leader，并保证任期稳定
+
+2.是否能选出leader后，在leader挂掉后，还能选出新leader
+
+3.更多的节点测试，更多的轮数测试集群是否正常运行
+
+go test通过rf.GetState()来调用检查当前节点状态是否为leader，通过Make来创建节点
+
+### 文件解释
+
+下列给出本实验重要的相关文件：
+
+```
+.
+├── config.go
+├── persister.go
+├── raft.go             本次实验需要修改的文件
+├── test_test.go        测试用例：只用到2A部分
+└── util.go
+```
+
+### 指令解释
+
+下面解释本实验出现的部分指令：
+
+```
+go test -run 2A
+```
+只需要用这个指令就可以进行测试了，推荐测试一百组（约一小时）。可以写脚本测试，也可以在这条指令的基础上加参数-count 100测试。据说2A测试失败率不超过3%就可以下一步实验了。
+
+## 任务目标
+
+补全raft.go的代码，需要补全的部分基本由注释提供
+
+1.补全raft结构体信息
+
+2.补全拉票参数/心跳包参数信息，即RequestVoteArgs，RequestVoteReply等
+
+3.补全Make()函数，提供测试函数初始化接口
+
+4.补全GetState()函数，提供给测试函数接口
+
+5.补全ticker()函数，控制状态（如follower）对应的行为
+
+6.补全拉票函数RequestVote及对应rpc接口
+
+7.提供心跳函数AppendEntries及对应rpc接口
+
+## 学习参考
+
+可视化动图：http://thesecretlivesofdata.com/raft/#overview
+
+任务书：http://nil.csail.mit.edu/6.824/2020/labs/lab-raft.html
+
+论文：http://nil.csail.mit.edu/6.824/2020/papers/raft-extended.pdf
+
+### 其他参考
+
+视频：https://www.bilibili.com/video/BV1uF411G7vc/
+
+论文翻译：https://blog.csdn.net/erlib/article/details/53671783
+
+任务书翻译：https://zhuanlan.zhihu.com/p/248686289
+
+部分教程（无好坏之分，只是额外提供一个学习的方向，适合自己才是最好的）：
+
+https://blog.csdn.net/MarksSa/article/details/127429742
+
+https://blog.csdn.net/qq_52245648/article/details/129485643
+
+https://blog.csdn.net/Z_Stand/article/details/116565983
+
+https://lizhaolong.blog.csdn.net/article/details/105981661
+
+https://blog.csdn.net/lin819747263/article/details/106316163
+
+https://blog.csdn.net/z1213035927/article/details/122867095
+
+https://zhuanlan.zhihu.com/p/476644274
+
+## 流程图
+
+### follower
+
+最初始的状态就是follower，由于超时（没有收到心跳包）从而转变为candidate
+
+### candidate
+
+变为candidate后，开始向其他节点通过rpc拉票，如果拉票超过半数就变为leader，否则就继续成为candidate拉票
+
+在期间如果发现有其他leader任期更大，就变为对方（不严谨）的follower
+
+### leader
+
+作为leader要一直向其他节点发出心跳包，维护自己的leader地位
+
+如果遇到了其他leader任期更大，也要变为对方的follower
+
+## 可能的坑
+
+首先是测试不稳定，推荐多组测试后才能确定代码没问题（但是测一百组就要一个多小时）
+
+注意：休眠时间的设置可能和论文不同，需要自己分析调整
+
+如果发现任期频繁更换，可能是超时时间的设置问题
+
+如果是发现任期没leader，可能是休眠时间设置的问题
+
+如果发现一个任期多leader，可能是拉票出现问题
+
+另：似乎如果先产生leader，再崩了超过一半节点，集群还会运行。但是测试似乎没有这个方面的样例
+
+## 源码
+
+https://gitee.com/jiangnan1634605411/mit6.824
