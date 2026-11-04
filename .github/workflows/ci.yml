@@ -20,10 +20,27 @@ jobs:
         with:
           go-version: 'stable'
 
-      # 编译整个项目（module 根即为仓库根，可直接 go build ./...）
-      - name: Build
-        run: go build ./...
+      # 编译所有“库”包。
+      # 注：6.5840 课程约定下，main/ 与 mrapps/ 目录下各自存放多个独立的
+      # package main 程序（mrcoordinator / mrworker / mrsequential，以及各类插件），
+      # 不能整体作为单一包用 go build ./... 编译，因此这里显式排除这两个目录。
+      - name: Build library packages
+        run: go list ./... | grep -vE '/(main|mrapps)$' | xargs go build
 
-      # 静态检查
-      - name: Vet
-        run: go vet ./...
+      # 逐个文件编译 main/ 下的独立程序（编译校验，不保留二进制）
+      - name: Build main programs (per file)
+        run: |
+          for f in main/mrcoordinator.go main/mrworker.go main/mrsequential.go; do
+            go build -o /dev/null "$f"
+          done
+
+      # 逐个文件编译 mrapps/ 下的插件（package main，独立构建）
+      - name: Build mrapps plugins (per file)
+        run: |
+          for f in mrapps/*.go; do
+            go build -o /dev/null "$f"
+          done
+
+      # 对已完成实验对应的包做静态检查（mr=lab1, raft=lab2a）
+      - name: Vet completed-lab packages
+        run: go vet ./mr ./raft
