@@ -34,11 +34,14 @@ jobs:
             go build -o /dev/null "$f"
           done
 
-      # 逐个文件编译 mrapps/ 下的插件（package main，独立构建）
-      - name: Build mrapps plugins (per file)
+      # 逐个文件编译 mrapps/ 下的插件。
+      # 这些文件是 package main 但部分不含 main() 函数，只能以 -buildmode=plugin 构建
+      # （这也是 lab1 运行时加载插件的方式）。
+      - name: Build mrapps plugins (per file, plugin mode)
         run: |
           for f in mrapps/*.go; do
-            go build -o /dev/null "$f"
+            out="$(mktemp -u).so"
+            go build -buildmode=plugin -o "$out" "$f" && rm -f "$out"
           done
 
       # 对已完成实验对应的包做静态检查（mr=lab1, raft=lab2a）
