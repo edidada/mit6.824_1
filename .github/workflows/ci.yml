@@ -1,0 +1,29 @@
+name: CI
+
+# 在 push 到 ci 分支，以及对 ci/master 的 PR 时触发
+on:
+  push:
+    branches: [ci]
+  pull_request:
+    branches: [ci, master]
+
+jobs:
+  build:
+    name: Build & Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      # 编译整个项目（module 根即为仓库根，可直接 go build ./...）
+      - name: Build
+        run: go build ./...
+
+      # 静态检查
+      - name: Vet
+        run: go vet ./...

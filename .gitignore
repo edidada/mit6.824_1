@@ -1,4 +1,4 @@
-*.*/
+# NOTE: the original "*.*/" pattern over-matched ".github" and ignored CI workflows; removed.
 main/mr-tmp/
 mrtmp.*
 824-mrinput-*.txt
