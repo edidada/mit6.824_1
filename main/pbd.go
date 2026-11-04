@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 //
@@ -5,17 +7,17 @@ package main
 //
 
 import "time"
-import "6.5840/viewservice"
+import "6.5840/pbservice"
 import "os"
 import "fmt"
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Printf("Usage: viewd port\n")
+	if len(os.Args) != 3 {
+		fmt.Printf("Usage: pbd viewport myport\n")
 		os.Exit(1)
 	}
 
-	viewservice.StartServer(os.Args[1])
+	pbservice.StartServer(os.Args[1], os.Args[2])
 
 	for {
 		time.Sleep(100 * time.Second)

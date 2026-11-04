@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 // export GOPATH=~/6.5840
