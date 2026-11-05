@@ -78,7 +78,6 @@ type Raft struct {
 	lastIncludedIndex int
 	lastIncludedTerm  int
 	snapshot          []byte
-	pendingSnap       bool // 启动时/安装快照后，需要向 applyCh 推送一次 SnapshotValid
 
 	// 选举计时
 	electionTimeout time.Duration
@@ -251,27 +250,28 @@ func (rf *Raft) ticker() {
 func (rf *Raft) applier() {
 	for !rf.killed() {
 		rf.mu.Lock()
-		if rf.pendingSnap {
-			rf.pendingSnap = false
-			snap := rf.snapshot
-			idx := rf.lastIncludedIndex
-			term := rf.lastIncludedTerm
-			rf.mu.Unlock()
-			rf.applyCh <- ApplyMsg{SnapshotValid: true, Snapshot: snap, SnapshotIndex: idx, SnapshotTerm: term}
-			continue
-		}
-		for rf.lastApplied >= rf.commitIndex {
+		// 没有可投递内容（命令与快照都已追上）时休眠
+		for rf.lastApplied >= rf.commitIndex && rf.lastApplied >= rf.lastIncludedIndex {
 			if rf.killed() {
 				rf.mu.Unlock()
 				return
 			}
 			rf.applyCond.Wait()
 		}
+		// 若快照领先于已应用位置，先有序投递快照
+		if rf.lastApplied < rf.lastIncludedIndex {
+			idx := rf.lastIncludedIndex
+			term := rf.lastIncludedTerm
+			snap := make([]byte, len(rf.snapshot))
+			copy(snap, rf.snapshot)
+			rf.lastApplied = idx
+			rf.mu.Unlock()
+			rf.applyCh <- ApplyMsg{SnapshotValid: true, Snapshot: snap, SnapshotIndex: idx, SnapshotTerm: term}
+			continue
+		}
+		// 顺序投递已提交命令
 		msgs := make([]ApplyMsg, 0)
 		for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
-			if i <= rf.lastIncludedIndex {
-				continue
-			}
 			e := rf.getEntry(i)
 			msgs = append(msgs, ApplyMsg{CommandValid: true, Command: e.Command, CommandIndex: i})
 		}
@@ -561,7 +561,6 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		return
 	}
 	rf.installSnapshot(args.LastIncludedIndex, args.LastIncludedTerm, args.Data)
-	rf.pendingSnap = true
 	rf.mu.Unlock()
 }
 
@@ -580,11 +579,8 @@ func (rf *Raft) installSnapshot(index, term int, data []byte) {
 	rf.snapshot = data
 	if rf.commitIndex < index {
 		rf.commitIndex = index
-		rf.applyCond.Broadcast()
 	}
-	if rf.lastApplied < index {
-		rf.lastApplied = index
-	}
+	rf.applyCond.Broadcast()
 	rf.persist()
 }
 
@@ -732,7 +728,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	if rf.commitIndex < rf.lastIncludedIndex {
 		rf.commitIndex = rf.lastIncludedIndex
 	}
-	rf.pendingSnap = rf.lastIncludedIndex > 0
 
 	go rf.ticker()
 	go rf.applier()
