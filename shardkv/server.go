@@ -207,17 +207,25 @@ func (kv *ShardKV) applyOp(op Op) OpResult {
 	case opConfig:
 		kv.applyConfig(op.Config)
 		return OpResult{Err: OK}
-	case opShard:
-		// The pull may have started under an older config; accept it as long
-		// as the shard is still waiting for data.
-		if kv.status[op.Shard] == stPulling {
-			kv.data[op.Shard] = copyStrMap(op.Data)
-			kv.dupe[op.Shard] = copyIntMap(op.Dupe)
-			kv.status[op.Shard] = stServing
-			kv.deleteTo[op.Shard] = kv.pullFrom[op.Shard]
-			kv.pullFrom[op.Shard] = nil
-		}
-		return OpResult{Err: OK}
+        case opShard:
+                // The pull may have started under an older config; accept it as long
+                // as the shard is still waiting for data.
+                if kv.status[op.Shard] == stPulling {
+                        kv.data[op.Shard] = copyStrMap(op.Data)
+                        kv.dupe[op.Shard] = copyIntMap(op.Dupe)
+                        kv.deleteTo[op.Shard] = kv.pullFrom[op.Shard]
+                        kv.pullFrom[op.Shard] = nil
+                        if kv.cfg.Shards[op.Shard] == kv.gid {
+                                kv.status[op.Shard] = stServing
+                        } else {
+                                // While we were pulling, another config handed this shard
+                                // to a third group. Keep the data as stPushing so that
+                                // group can pull it from us instead of getting an empty
+                                // map (or being refused by GetShard) and losing data.
+                                kv.status[op.Shard] = stPushing
+                        }
+                }
+                return OpResult{Err: OK}
 	case opDelete:
 		if kv.status[op.Shard] == stPushing {
 			kv.data[op.Shard] = make(map[string]string)

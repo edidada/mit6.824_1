@@ -71,3 +71,9 @@ jobs:
 
       - name: Test ShardKV (stable subset)
         run: go test ./shardkv -run 'TestStaticShards|TestJoinLeave|TestConcurrent1|TestChallenge2Unaffected|TestChallenge2Partial' -timeout 300s
+
+      # 诊断用：运行剩余未稳定用例并收集详细失败日志，暂不纳入门禁。
+      # 待这些用例稳定后，合并进上面的门禁步骤。
+      - name: Test ShardKV (diagnostic, remaining cases)
+        continue-on-error: true
+        run: go test ./shardkv -run 'TestSnapshot|TestMissChange|TestConcurrent2|TestConcurrent3|TestUnreliable1|TestUnreliable2|TestUnreliable3|TestChallenge1Delete' -timeout 900s -v
