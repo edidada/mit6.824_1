@@ -47,3 +47,7 @@ jobs:
       # 对已完成实验对应的包做静态检查（mr=lab1, raft=lab2a）
       - name: Vet completed-lab packages
         run: go vet ./mr ./raft
+
+      # 验证 Raft 2A/2B（选主 + 日志复制）
+      - name: Test Raft (2A/2B)
+        run: go test ./raft -run '2A|2B' -timeout 300s
