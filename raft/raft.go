@@ -345,10 +345,8 @@ func (rf *Raft) leaderAppendEntries() {
 						rf.becomeFollower(reply.Term)
 						return
 					}
-					if reply.Success {
-						rf.matchIndex[server] = args.LastIncludedIndex
-						rf.nextIndex[server] = args.LastIncludedIndex + 1
-					}
+					rf.matchIndex[server] = args.LastIncludedIndex
+					rf.nextIndex[server] = args.LastIncludedIndex + 1
 				}
 			} else {
 				args := a.(*AppendEntriesArgs)
