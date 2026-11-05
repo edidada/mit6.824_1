@@ -8,8 +8,6 @@ package raft
 import (
 	"bytes"
 	"math/rand"
-	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -137,7 +135,6 @@ func (rf *Raft) becomeFollower(term int) {
 
 func (rf *Raft) becomeLeader() {
 	rf.role = Leader
-	fmt.Fprintf(os.Stderr, "DBG BECOMELEADER me=%d term=%d\n", rf.me, rf.currentTerm)
 	rf.lastHeartbeat = time.Now()
 	last := rf.getLastLogIndex()
 	n := len(rf.peers)
@@ -558,7 +555,6 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 	rf.mu.Lock()
 	reply.Term = rf.currentTerm
 	if args.Term < rf.currentTerm {
-		fmt.Fprintf(os.Stderr, "DBG REJSNAP me=%d myterm=%d argsterm=%d\n", rf.me, rf.currentTerm, args.Term)
 		rf.mu.Unlock()
 		return
 	}
@@ -570,7 +566,6 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		rf.mu.Unlock()
 		return
 	}
-	fmt.Fprintf(os.Stderr, "DBG INSTSNAP me=%d fromterm=%d idx=%d\n", rf.me, args.Term, args.LastIncludedIndex)
 	rf.installSnapshot(args.LastIncludedIndex, args.LastIncludedTerm, args.Data)
 	rf.mu.Unlock()
 }
