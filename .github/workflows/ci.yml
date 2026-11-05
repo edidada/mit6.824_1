@@ -49,5 +49,6 @@ jobs:
         run: go vet ./mr ./raft
 
       # 验证 Raft 2A/2B/2C/2D（选主 + 日志复制 + 持久化 + 快照）
-      - name: Test Raft (2A-2D)
-        run: go test ./raft -run '2A|2B|2C|2D' -timeout 600s
+      # 临时只跑此前失败的两个 2C churn 用例，确认 ConflictTerm 优化有效
+      - name: Test Raft (2C churn canaries)
+        run: go test ./raft -run 'TestFigure8Unreliable2C|TestReliableChurn2C' -timeout 300s

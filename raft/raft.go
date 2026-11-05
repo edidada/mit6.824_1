@@ -78,6 +78,7 @@ type Raft struct {
 	lastIncludedIndex int
 	lastIncludedTerm  int
 	snapshot          []byte
+	pendingSnap       bool // 启动时/安装快照后，需要向 applyCh 推送一次 SnapshotValid
 
 	// 选举计时
 	electionTimeout time.Duration
@@ -250,6 +251,15 @@ func (rf *Raft) ticker() {
 func (rf *Raft) applier() {
 	for !rf.killed() {
 		rf.mu.Lock()
+		if rf.pendingSnap {
+			rf.pendingSnap = false
+			snap := rf.snapshot
+			idx := rf.lastIncludedIndex
+			term := rf.lastIncludedTerm
+			rf.mu.Unlock()
+			rf.applyCh <- ApplyMsg{SnapshotValid: true, Snapshot: snap, SnapshotIndex: idx, SnapshotTerm: term}
+			continue
+		}
 		for rf.lastApplied >= rf.commitIndex {
 			if rf.killed() {
 				rf.mu.Unlock()
@@ -358,15 +368,36 @@ func (rf *Raft) leaderAppendEntries() {
 						rf.becomeFollower(reply.Term)
 						return
 					}
-					if reply.Success {
-						rf.matchIndex[server] = args.PrevLogIndex + len(args.Entries)
-						rf.nextIndex[server] = rf.matchIndex[server] + 1
-						rf.updateCommit()
-					} else {
-						if rf.nextIndex[server] > 1 {
-							rf.nextIndex[server]--
+						if reply.Success {
+							rf.matchIndex[server] = args.PrevLogIndex + len(args.Entries)
+							rf.nextIndex[server] = rf.matchIndex[server] + 1
+							rf.updateCommit()
+						} else {
+							// 快速回退：利用 ConflictTerm/ConflictIndex 跳转，而非逐条递减
+							if reply.ConflictTerm != 0 {
+								lastIdxWithTerm := -1
+								for i := len(rf.log) - 1; i >= 0; i-- {
+									if rf.log[i].Term == reply.ConflictTerm {
+										lastIdxWithTerm = rf.lastIncludedIndex + i
+										break
+									}
+								}
+								if lastIdxWithTerm != -1 {
+									rf.nextIndex[server] = lastIdxWithTerm + 1
+								} else {
+									rf.nextIndex[server] = reply.ConflictIndex
+								}
+							} else {
+								if reply.ConflictIndex > rf.lastIncludedIndex {
+									rf.nextIndex[server] = reply.ConflictIndex
+								} else {
+									rf.nextIndex[server] = rf.lastIncludedIndex + 1
+								}
+							}
+							if rf.nextIndex[server] < 1 {
+								rf.nextIndex[server] = 1
+							}
 						}
-					}
 				}
 			}
 		}(r.server, r.isSnap, r.args)
@@ -397,8 +428,10 @@ type AppendEntriesArgs struct {
 }
 
 type AppendEntriesReply struct {
-	Term    int
-	Success bool
+	Term          int
+	Success       bool
+	ConflictTerm  int
+	ConflictIndex int
 }
 
 type InstallSnapshotArgs struct {
@@ -461,9 +494,25 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		return
 	}
 	if args.PrevLogIndex < rf.lastIncludedIndex {
+		reply.ConflictIndex = rf.lastIncludedIndex
+		reply.ConflictTerm = 0
 		return
 	}
-	if rf.getTerm(args.PrevLogIndex) != args.PrevLogTerm {
+	// 任期不一致：返回冲突任期与首个该任期的索引，帮助 Leader 快速跳转
+	t := rf.getTerm(args.PrevLogIndex)
+	if t != args.PrevLogTerm {
+		reply.ConflictTerm = t
+		if t == rf.lastIncludedTerm {
+			reply.ConflictIndex = rf.lastIncludedIndex
+		} else {
+			reply.ConflictIndex = rf.lastIncludedIndex + 1
+			for i := 1; i < len(rf.log); i++ {
+				if rf.log[i].Term == t {
+					reply.ConflictIndex = rf.lastIncludedIndex + i
+					break
+				}
+			}
+		}
 		return
 	}
 
@@ -512,17 +561,8 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		return
 	}
 	rf.installSnapshot(args.LastIncludedIndex, args.LastIncludedTerm, args.Data)
-	snap := make([]byte, len(args.Data))
-	copy(snap, args.Data)
-	idx := rf.lastIncludedIndex
-	term := rf.lastIncludedTerm
+	rf.pendingSnap = true
 	rf.mu.Unlock()
-	rf.applyCh <- ApplyMsg{
-		SnapshotValid: true,
-		Snapshot:      snap,
-		SnapshotIndex: idx,
-		SnapshotTerm:  term,
-	}
 }
 
 func (rf *Raft) installSnapshot(index, term int, data []byte) {
@@ -692,6 +732,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	if rf.commitIndex < rf.lastIncludedIndex {
 		rf.commitIndex = rf.lastIncludedIndex
 	}
+	rf.pendingSnap = rf.lastIncludedIndex > 0
 
 	go rf.ticker()
 	go rf.applier()
