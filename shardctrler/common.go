@@ -14,8 +14,6 @@ package shardctrler
 // #0 is the initial configuration, with no groups and all shards
 // assigned to group 0 (the invalid group).
 //
-// You will need to add fields to the RPC argument structs.
-//
 
 // The number of shards.
 const NShards = 10
@@ -36,6 +34,8 @@ type Err string
 
 type JoinArgs struct {
 	Servers map[int][]string // new GID -> servers mappings
+	ClientId int64
+	Seq      int
 }
 
 type JoinReply struct {
@@ -45,6 +45,8 @@ type JoinReply struct {
 
 type LeaveArgs struct {
 	GIDs []int
+	ClientId int64
+	Seq      int
 }
 
 type LeaveReply struct {
@@ -55,6 +57,8 @@ type LeaveReply struct {
 type MoveArgs struct {
 	Shard int
 	GID   int
+	ClientId int64
+	Seq      int
 }
 
 type MoveReply struct {
@@ -64,6 +68,8 @@ type MoveReply struct {
 
 type QueryArgs struct {
 	Num int // desired config number
+	ClientId int64
+	Seq      int
 }
 
 type QueryReply struct {

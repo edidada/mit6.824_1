@@ -57,8 +57,9 @@ type Raft struct {
 	me        int
 	dead      int32
 
-	applyCh   chan ApplyMsg
-	applyCond *sync.Cond
+	applyCh     chan ApplyMsg
+	applyCond   *sync.Cond
+	replicateCh chan struct{}
 
 	// 持久化状态 (2A/2B/2C)
 	currentTerm int
@@ -234,7 +235,10 @@ func (rf *Raft) ticker() {
 		if rf.role == Leader {
 			rf.mu.Unlock()
 			rf.leaderAppendEntries()
-			time.Sleep(heartbeatInterval)
+			select {
+			case <-rf.replicateCh:
+			case <-time.After(heartbeatInterval):
+			}
 			continue
 		}
 		elapsed := time.Since(rf.lastHeartbeat)
@@ -624,6 +628,10 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	rf.nextIndex[rf.me] = idx + 1
 	rf.persist()
 	rf.updateCommit()
+	select {
+	case rf.replicateCh <- struct{}{}:
+	default:
+	}
 	return idx, rf.currentTerm, true
 }
 
@@ -725,6 +733,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.electionTimeout = randomElectionTimeout()
 	rf.lastHeartbeat = time.Now()
 	rf.applyCond = sync.NewCond(&rf.mu)
+	rf.replicateCh = make(chan struct{}, 1)
 
 	rf.readPersist(persister.ReadRaftState())
 	rf.snapshot = persister.ReadSnapshot()

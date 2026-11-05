@@ -8,6 +8,7 @@ package shardkv
 // talks to the group that holds the key's shard.
 //
 
+import "sync"
 import "6.5840/labrpc"
 import "crypto/rand"
 import "math/big"
@@ -37,7 +38,17 @@ type Clerk struct {
 	sm       *shardctrler.Clerk
 	config   shardctrler.Config
 	make_end func(string) *labrpc.ClientEnd
-	// You will have to modify this struct.
+
+	mu       sync.Mutex
+	clientId int64
+	seq      int
+}
+
+func (ck *Clerk) nextSeq() int {
+	ck.mu.Lock()
+	defer ck.mu.Unlock()
+	ck.seq++
+	return ck.seq
 }
 
 // the tester calls MakeClerk.
@@ -51,17 +62,19 @@ func MakeClerk(ctrlers []*labrpc.ClientEnd, make_end func(string) *labrpc.Client
 	ck := new(Clerk)
 	ck.sm = shardctrler.MakeClerk(ctrlers)
 	ck.make_end = make_end
-	// You'll have to add code here.
+	ck.clientId = nrand()
+	ck.config = ck.sm.Query(-1)
 	return ck
 }
 
 // fetch the current value for a key.
 // returns "" if the key does not exist.
 // keeps trying forever in the face of all other errors.
-// You will have to modify this function.
 func (ck *Clerk) Get(key string) string {
 	args := GetArgs{}
 	args.Key = key
+	args.ClientId = ck.clientId
+	args.Seq = ck.nextSeq()
 
 	for {
 		shard := key2shard(key)
@@ -85,18 +98,16 @@ func (ck *Clerk) Get(key string) string {
 		// ask controler for the latest configuration.
 		ck.config = ck.sm.Query(-1)
 	}
-
-	return ""
 }
 
 // shared by Put and Append.
-// You will have to modify this function.
 func (ck *Clerk) PutAppend(key string, value string, op string) {
 	args := PutAppendArgs{}
 	args.Key = key
 	args.Value = value
 	args.Op = op
-
+	args.ClientId = ck.clientId
+	args.Seq = ck.nextSeq()
 
 	for {
 		shard := key2shard(key)
