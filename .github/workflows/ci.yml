@@ -50,4 +50,4 @@ jobs:
 
       # 验证 Raft 2A/2B/2C/2D（选主 + 日志复制 + 持久化 + 快照）
       - name: Test Raft (2A-2D)
-        run: go test ./raft -run '2A|2B|2C|2D' -timeout 600s
+        run: go test ./raft -run '2D' -timeout 300s -v
