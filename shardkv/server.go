@@ -74,7 +74,12 @@ type ShardKV struct {
 	// deleteTo[s] records the group we pulled shard s from, so we can tell it
 	// to drop its copy once we have safely installed the shard. Stored in the
 	// replicated state so a config change cannot orphan the deletion.
-	deleteTo    [shardctrler.NShards][]string
+	deleteTo [shardctrler.NShards][]string
+	// frozen[s] means data[s]/dupe[s] is a complete, frozen copy of shard s
+	// (as opposed to an empty placeholder). Such a copy may be handed to a
+	// group that is still pulling the shard for an older config, even while
+	// we are refreshing it for ourselves after a come-back.
+	frozen      [shardctrler.NShards]bool
 	pending     map[int]chan OpResult
 	lastApplied int
 
@@ -118,18 +123,23 @@ func (kv *ShardKV) applyConfig(cfg shardctrler.Config) {
 				continue
 			}
 			if kv.status[s] == stPushing {
-				// The shard is coming back after being given away. Our frozen
-				// stPushing copy can be stale: the interim owner may have applied
-				// writes to it. Re-pull from that owner rather than serving an
-				// outdated value.
+				// Coming back after being given away. The frozen copy may be
+				// stale (the interim owner could have served writes), so we
+				// must refresh before serving clients. But KEEP the copy
+				// (frozen[s] stays true): a group that is still pulling this
+				// shard from us for an OLDER config needs it, and discarding
+				// it creates a cyclic pull deadlock (A waits on B, B waits on A).
 				kv.status[s] = stPulling
-				kv.data[s] = make(map[string]string)
-				kv.dupe[s] = make(map[int64]int)
 				kv.deleteTo[s] = nil
 				if oldOwner != 0 && oldOwner != kv.gid {
 					kv.pullFrom[s] = append([]string(nil), old.Groups[oldOwner]...)
 				} else {
 					kv.pullFrom[s] = nil
+				}
+				if len(kv.pullFrom[s]) == 0 {
+					// No owner to refresh from: the frozen copy is the only
+					// data available, so serve it directly.
+					kv.status[s] = stServing
 				}
 				continue
 			}
@@ -137,17 +147,20 @@ func (kv *ShardKV) applyConfig(cfg shardctrler.Config) {
 			kv.deleteTo[s] = nil
 			if oldOwner == kv.gid {
 				kv.status[s] = stServing
+				kv.frozen[s] = true
 			} else if oldOwner == 0 {
 				// initial assignment: no previous owner holds any data
 				kv.data[s] = make(map[string]string)
 				kv.dupe[s] = make(map[int64]int)
 				kv.status[s] = stServing
+				kv.frozen[s] = true
 			} else {
 				// newly gained: remember the old owner's servers to pull from
 				kv.status[s] = stPulling
 				kv.pullFrom[s] = append([]string(nil), old.Groups[oldOwner]...)
 				kv.data[s] = make(map[string]string)
 				kv.dupe[s] = make(map[int64]int)
+				kv.frozen[s] = false
 			}
 		} else if kv.status[s] == stPulling {
 			// The shard is moving on to another group but we have not received
@@ -156,7 +169,9 @@ func (kv *ShardKV) applyConfig(cfg shardctrler.Config) {
 			// avoids becoming an empty pull source when configs change rapidly.
 			continue
 		} else if oldOwner == kv.gid {
-			// we are giving the shard away; keep data for the puller
+			// we are giving the shard away; keep data for the puller.
+			// Preserve frozen[s]: if GC already cleared our copy it is false and
+			// we must NOT offer an empty map as if it were a complete shard.
 			kv.status[s] = stPushing
 			kv.pullFrom[s] = nil
 			kv.deleteTo[s] = nil
@@ -167,6 +182,7 @@ func (kv *ShardKV) applyConfig(cfg shardctrler.Config) {
 			kv.status[s] = stServing
 			kv.pullFrom[s] = nil
 			kv.deleteTo[s] = nil
+			kv.frozen[s] = false
 		}
 		// else: stPushing with data — keep it for a slower puller even after
 		// we have advanced to a later config.
@@ -180,11 +196,14 @@ func (kv *ShardKV) applyConfig(cfg shardctrler.Config) {
 func (kv *ShardKV) applyClient(op Op) OpResult {
 	res := OpResult{}
 	shard := key2shard(op.Key)
-	// A clerk caches its config. If it is stale (or we are behind), serving
-	// the op here would read/write a shard copy that is no longer
-	// authoritative, losing the operation. Reject so the clerk re-queries the
-	// shardctrler and retries against the correct group/config.
-	if op.ConfigNum != kv.cfg.Num {
+	// Reject only a clerk whose config is OLDER than ours: it may be routing
+	// to a group that no longer owns the shard, and serving it would apply the
+	// op to a non-authoritative copy. When WE are behind the clerk, do not
+	// reject: the clerk routes by the shardctrler's latest config, and our
+	// ownership/status check below is authoritative. Rejecting here instead
+	// livelocks the clerk, which keeps re-querying the same (newer) config
+	// while a group that is catching up can never serve it.
+	if op.ConfigNum < kv.cfg.Num {
 		res.Err = ErrWrongGroup
 		return res
 	}
@@ -227,6 +246,7 @@ func (kv *ShardKV) applyOp(op Op) OpResult {
 		if kv.status[op.Shard] == stPulling {
 			kv.data[op.Shard] = copyStrMap(op.Data)
 			kv.dupe[op.Shard] = copyIntMap(op.Dupe)
+			kv.frozen[op.Shard] = true
 			kv.deleteTo[op.Shard] = kv.pullFrom[op.Shard]
 			kv.pullFrom[op.Shard] = nil
 			if kv.cfg.Shards[op.Shard] == kv.gid {
@@ -241,10 +261,13 @@ func (kv *ShardKV) applyOp(op Op) OpResult {
 		}
 		return OpResult{Err: OK}
 	case opDelete:
+		// The new owner has installed the shard; drop our frozen copy so it
+		// cannot later be served as a stale snapshot, and to bound state size.
 		if kv.status[op.Shard] == stPushing {
 			kv.data[op.Shard] = make(map[string]string)
 			kv.dupe[op.Shard] = make(map[int64]int)
 			kv.status[op.Shard] = stServing
+			kv.frozen[op.Shard] = false
 		}
 		return OpResult{Err: OK}
 	case opDelClear:
@@ -266,6 +289,7 @@ func (kv *ShardKV) makeSnapshot(index int) []byte {
 	e.Encode(kv.status)
 	e.Encode(kv.pullFrom)
 	e.Encode(kv.deleteTo)
+	e.Encode(kv.frozen)
 	return w.Bytes()
 }
 
@@ -283,9 +307,10 @@ func (kv *ShardKV) installSnapshot(data []byte) {
 	var status [shardctrler.NShards]int
 	var pullFrom [shardctrler.NShards][]string
 	var deleteTo [shardctrler.NShards][]string
+	var frozen [shardctrler.NShards]bool
 	if d.Decode(&index) != nil || d.Decode(&cfg) != nil || d.Decode(&prevCfg) != nil ||
 		d.Decode(&dmap) != nil || d.Decode(&dupe) != nil || d.Decode(&status) != nil ||
-		d.Decode(&pullFrom) != nil || d.Decode(&deleteTo) != nil {
+		d.Decode(&pullFrom) != nil || d.Decode(&deleteTo) != nil || d.Decode(&frozen) != nil {
 		return
 	}
 	kv.cfg = cfg
@@ -295,6 +320,7 @@ func (kv *ShardKV) installSnapshot(data []byte) {
 	kv.status = status
 	kv.pullFrom = pullFrom
 	kv.deleteTo = deleteTo
+	kv.frozen = frozen
 	kv.lastApplied = index
 	for s := 0; s < shardctrler.NShards; s++ {
 		if kv.data[s] == nil {
@@ -399,23 +425,19 @@ func (kv *ShardKV) GetShard(args *GetShardArgs, reply *GetShardReply) {
 	}
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
-	// Only a stPushing shard holds authoritative data we are allowed to hand
-	// off. stServing/stPulling states may be empty placeholders (a shard we
-	// never had, or one whose data was already GC'd), and serving those would
-	// install an empty map in the new owner and lose data.
-	if kv.status[args.Shard] != stPushing {
+	// Serve any complete, frozen copy that we are NOT currently serving to
+	// clients (stPushing = given away; stPulling = refreshing after a
+	// come-back). Keeping such copies pullable is what breaks the cyclic
+	// A-waits-on-B / B-waits-on-A deadlock when shards bounce. A stServing
+	// shard is live (clerks are still writing it) and must not be handed out,
+	// or those writes would be lost. An empty placeholder (frozen=false) must
+	// never be handed out either.
+	if !kv.frozen[args.Shard] || kv.status[args.Shard] == stServing {
 		reply.Err = ErrWrongGroup
 		return
 	}
-	// Do NOT compare config numbers here: groups advance at different speeds,
-	// and requiring the old owner to have caught up to the requester's config
-	// creates a cross-group wait cycle that deadlocks migrations. The shard
-	// state alone tells us the data is frozen and final (stPushing means we
-	// already stopped accepting client ops for it).
-	if kv.cfg.Shards[args.Shard] == kv.gid {
-		reply.Err = ErrWrongGroup
-		return
-	}
+	// No config-number comparison: groups advance at different speeds and
+	// comparing them here creates a cross-group wait cycle.
 	reply.Data = copyStrMap(kv.data[args.Shard])
 	reply.Dupe = copyIntMap(kv.dupe[args.Shard])
 	reply.Err = OK

@@ -1,13 +1,14 @@
 package shardctrler
 
 import (
+	"6.5840/labgob"
+	"6.5840/labrpc"
+	"6.5840/raft"
+	"bytes"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
-	"6.5840/labgob"
-	"6.5840/labrpc"
-	"6.5840/raft"
 )
 
 type Op struct {
@@ -36,7 +37,15 @@ type ShardCtrler struct {
 	configs []Config // indexed by config num
 	dupe    map[int64]int
 	pending map[int]chan OpResult
+
+	persister   *raft.Persister
+	lastApplied int
 }
+
+// Query ops are also logged. Without snapshotting, a long run with many rapid
+// reconfigurations grows the Raft log without bound and persist() becomes
+// O(n^2), stalling Queries. Keep the log small with a fixed threshold.
+const ctrlerSnapshotThreshold = 4096
 
 // copyConfig deep-copies a Config so configs never share a Groups map.
 func copyConfig(c Config) Config {
@@ -152,6 +161,34 @@ func (sc *ShardCtrler) applyOp(op Op) OpResult {
 	return res
 }
 
+// makeSnapshot encodes the whole state machine. caller must hold sc.mu.
+func (sc *ShardCtrler) makeSnapshot(index int) []byte {
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+	e.Encode(index)
+	e.Encode(sc.configs)
+	e.Encode(sc.dupe)
+	return w.Bytes()
+}
+
+// installSnapshot restores state from a snapshot. caller must hold sc.mu.
+func (sc *ShardCtrler) installSnapshot(data []byte) {
+	if len(data) < 1 {
+		return
+	}
+	r := bytes.NewBuffer(data)
+	d := labgob.NewDecoder(r)
+	var index int
+	var configs []Config
+	var dupe map[int64]int
+	if d.Decode(&index) != nil || d.Decode(&configs) != nil || d.Decode(&dupe) != nil {
+		return
+	}
+	sc.configs = configs
+	sc.dupe = dupe
+	sc.lastApplied = index
+}
+
 func (sc *ShardCtrler) applier() {
 	for !sc.killed() {
 		msg := <-sc.applyCh
@@ -159,10 +196,17 @@ func (sc *ShardCtrler) applier() {
 		if msg.CommandValid {
 			op := msg.Command.(Op)
 			res := sc.applyOp(op)
+			sc.lastApplied = msg.CommandIndex
 			if ch, ok := sc.pending[msg.CommandIndex]; ok {
 				delete(sc.pending, msg.CommandIndex)
 				ch <- res
 			}
+			if sc.lastApplied > 0 && sc.persister.RaftStateSize() > ctrlerSnapshotThreshold {
+				sc.rf.Snapshot(sc.lastApplied, sc.makeSnapshot(sc.lastApplied))
+			}
+		} else if msg.SnapshotValid {
+			sc.installSnapshot(msg.Snapshot)
+			sc.lastApplied = msg.SnapshotIndex
 		}
 		sc.mu.Unlock()
 	}
@@ -259,6 +303,7 @@ func (sc *ShardCtrler) Raft() *raft.Raft {
 func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister) *ShardCtrler {
 	sc := new(ShardCtrler)
 	sc.me = me
+	sc.persister = persister
 
 	sc.configs = make([]Config, 1)
 	sc.configs[0].Groups = map[int][]string{}
@@ -268,6 +313,13 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister)
 	labgob.Register(Op{})
 	sc.applyCh = make(chan raft.ApplyMsg)
 	sc.rf = raft.Make(servers, me, persister, sc.applyCh)
+
+	snap := persister.ReadSnapshot()
+	if len(snap) > 0 {
+		sc.mu.Lock()
+		sc.installSnapshot(snap)
+		sc.mu.Unlock()
+	}
 
 	go sc.applier()
 	return sc

@@ -77,8 +77,8 @@ jobs:
       # 待这些用例稳定后，合并进上面的门禁步骤。
       - name: "Test ShardKV (diag: miss/concurrent)"
         continue-on-error: true
-        run: go test ./shardkv -run 'TestMissChange|TestConcurrent2|TestConcurrent3' -timeout 240s -v
+        run: go test ./shardkv -run 'TestMissChange|TestConcurrent2|TestConcurrent3' -timeout 120s -v
 
       - name: "Test ShardKV (diag: unreliable/delete/snapshot)"
         continue-on-error: true
-        run: go test ./shardkv -run 'TestUnreliable1|TestUnreliable2|TestUnreliable3|TestChallenge1Delete|TestSnapshot' -timeout 300s -v
+        run: go test ./shardkv -run 'TestUnreliable1|TestUnreliable2|TestUnreliable3|TestChallenge1Delete|TestSnapshot' -timeout 150s -v
