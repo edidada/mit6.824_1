@@ -66,19 +66,25 @@ jobs:
       # 快速连续重配置下的少数用例（MissChange / Concurrent2-3 /
       # Unreliable2-3 / Challenge1Delete）偶发不一致，暂未纳入门禁，
       # 以免 CI 长时间挂起。详见 docs/lab4-shardkv.md。
+      # 这些步骤用 if: always()，保证前面某个耗时测试（如 kvraft 3A/3B）偶发
+      # 超时挂起时，shardkv 的编译与诊断结果仍能被收集，不会整轮 skip。
       - name: Build ShardKV
+        if: always()
         run: go build ./shardkv
 
       - name: Test ShardKV (stable subset)
+        if: always()
         run: go test ./shardkv -run 'TestStaticShards|TestJoinLeave|TestConcurrent1|TestChallenge2Unaffected|TestChallenge2Partial' -timeout 300s
 
       # 诊断用：运行剩余未稳定用例并收集详细失败日志，暂不纳入门禁。
       # 拆成多组、各自设较短超时，避免单个用例挂起拖垮整轮诊断。
       # 待这些用例稳定后，合并进上面的门禁步骤。
       - name: "Test ShardKV (diag: miss/concurrent)"
+        if: always()
         continue-on-error: true
         run: go test ./shardkv -run 'TestMissChange|TestConcurrent2|TestConcurrent3' -timeout 120s -v
 
       - name: "Test ShardKV (diag: unreliable/delete/snapshot)"
+        if: always()
         continue-on-error: true
         run: go test ./shardkv -run 'TestUnreliable1|TestUnreliable2|TestUnreliable3|TestChallenge1Delete|TestSnapshot' -timeout 150s -v
