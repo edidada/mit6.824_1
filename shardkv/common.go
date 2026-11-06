@@ -23,6 +23,10 @@ type PutAppendArgs struct {
 	Op       string // "Put" or "Append"
 	ClientId int64
 	Seq      int
+	// ConfigNum is the configuration the clerk used to route this request.
+	// The server rejects the op if its installed config differs, which
+	// prevents a stale clerk from being served an outdated shard copy.
+	ConfigNum int
 }
 
 type PutAppendReply struct {
@@ -30,9 +34,10 @@ type PutAppendReply struct {
 }
 
 type GetArgs struct {
-	Key      string
-	ClientId int64
-	Seq      int
+	Key       string
+	ClientId  int64
+	Seq       int
+	ConfigNum int
 }
 
 type GetReply struct {

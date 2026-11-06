@@ -14,11 +14,11 @@ import (
 
 // Op types replicated through Raft.
 const (
-	opClient    = "Client"
-	opConfig    = "Config"
-	opShard     = "Shard"
-	opDelete    = "Delete"
-	opDelClear  = "DelClear"
+	opClient   = "Client"
+	opConfig   = "Config"
+	opShard    = "Shard"
+	opDelete   = "Delete"
+	opDelClear = "DelClear"
 )
 
 // per-shard states during reconfiguration.
@@ -61,16 +61,16 @@ type ShardKV struct {
 	persister *raft.Persister
 	mck       *shardctrler.Clerk
 
-	cfg         shardctrler.Config
-	prevCfg     shardctrler.Config
-	data        [shardctrler.NShards]map[string]string
-	dupe        [shardctrler.NShards]map[int64]int
-	status      [shardctrler.NShards]int
+	cfg     shardctrler.Config
+	prevCfg shardctrler.Config
+	data    [shardctrler.NShards]map[string]string
+	dupe    [shardctrler.NShards]map[int64]int
+	status  [shardctrler.NShards]int
 	// pullFrom[s] holds the server names of the group we must fetch shard s
 	// from. It is stored in the replicated state (and snapshots) so that a
 	// pending pull survives intervening configuration changes, which would
 	// otherwise make prevCfg point at the wrong owner.
-	pullFrom    [shardctrler.NShards][]string
+	pullFrom [shardctrler.NShards][]string
 	// deleteTo[s] records the group we pulled shard s from, so we can tell it
 	// to drop its copy once we have safely installed the shard. Stored in the
 	// replicated state so a config change cannot orphan the deletion.
@@ -118,13 +118,19 @@ func (kv *ShardKV) applyConfig(cfg shardctrler.Config) {
 				continue
 			}
 			if kv.status[s] == stPushing {
-				// The shard is coming back to us and we still hold its data
-				// (the other group never confirmed receipt via DeleteShard,
-				// so our copy is authoritative). Serve it directly instead of
-				// re-pulling from a group that may never have received it.
-				kv.status[s] = stServing
-				kv.pullFrom[s] = nil
+				// The shard is coming back after being given away. Our frozen
+				// stPushing copy can be stale: the interim owner may have applied
+				// writes to it. Re-pull from that owner rather than serving an
+				// outdated value.
+				kv.status[s] = stPulling
+				kv.data[s] = make(map[string]string)
+				kv.dupe[s] = make(map[int64]int)
 				kv.deleteTo[s] = nil
+				if oldOwner != 0 && oldOwner != kv.gid {
+					kv.pullFrom[s] = append([]string(nil), old.Groups[oldOwner]...)
+				} else {
+					kv.pullFrom[s] = nil
+				}
 				continue
 			}
 			kv.pullFrom[s] = nil
@@ -174,6 +180,14 @@ func (kv *ShardKV) applyConfig(cfg shardctrler.Config) {
 func (kv *ShardKV) applyClient(op Op) OpResult {
 	res := OpResult{}
 	shard := key2shard(op.Key)
+	// A clerk caches its config. If it is stale (or we are behind), serving
+	// the op here would read/write a shard copy that is no longer
+	// authoritative, losing the operation. Reject so the clerk re-queries the
+	// shardctrler and retries against the correct group/config.
+	if op.ConfigNum != kv.cfg.Num {
+		res.Err = ErrWrongGroup
+		return res
+	}
 	if kv.cfg.Shards[shard] != kv.gid || kv.status[shard] != stServing {
 		res.Err = ErrWrongGroup
 		return res
@@ -207,25 +221,25 @@ func (kv *ShardKV) applyOp(op Op) OpResult {
 	case opConfig:
 		kv.applyConfig(op.Config)
 		return OpResult{Err: OK}
-        case opShard:
-                // The pull may have started under an older config; accept it as long
-                // as the shard is still waiting for data.
-                if kv.status[op.Shard] == stPulling {
-                        kv.data[op.Shard] = copyStrMap(op.Data)
-                        kv.dupe[op.Shard] = copyIntMap(op.Dupe)
-                        kv.deleteTo[op.Shard] = kv.pullFrom[op.Shard]
-                        kv.pullFrom[op.Shard] = nil
-                        if kv.cfg.Shards[op.Shard] == kv.gid {
-                                kv.status[op.Shard] = stServing
-                        } else {
-                                // While we were pulling, another config handed this shard
-                                // to a third group. Keep the data as stPushing so that
-                                // group can pull it from us instead of getting an empty
-                                // map (or being refused by GetShard) and losing data.
-                                kv.status[op.Shard] = stPushing
-                        }
-                }
-                return OpResult{Err: OK}
+	case opShard:
+		// The pull may have started under an older config; accept it as long
+		// as the shard is still waiting for data.
+		if kv.status[op.Shard] == stPulling {
+			kv.data[op.Shard] = copyStrMap(op.Data)
+			kv.dupe[op.Shard] = copyIntMap(op.Dupe)
+			kv.deleteTo[op.Shard] = kv.pullFrom[op.Shard]
+			kv.pullFrom[op.Shard] = nil
+			if kv.cfg.Shards[op.Shard] == kv.gid {
+				kv.status[op.Shard] = stServing
+			} else {
+				// While we were pulling, another config handed this shard
+				// to a third group. Keep the data as stPushing so that
+				// group can pull it from us instead of getting an empty
+				// map (or being refused by GetShard) and losing data.
+				kv.status[op.Shard] = stPushing
+			}
+		}
+		return OpResult{Err: OK}
 	case opDelete:
 		if kv.status[op.Shard] == stPushing {
 			kv.data[op.Shard] = make(map[string]string)
@@ -363,7 +377,7 @@ func (kv *ShardKV) submit(op Op) OpResult {
 }
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) {
-	op := Op{Type: opClient, Key: args.Key, Op: "Get", ClientId: args.ClientId, Seq: args.Seq}
+	op := Op{Type: opClient, Key: args.Key, Op: "Get", ClientId: args.ClientId, Seq: args.Seq, ConfigNum: args.ConfigNum}
 	res := kv.submit(op)
 	reply.Err = res.Err
 	reply.Value = res.Value
@@ -371,7 +385,7 @@ func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) {
 
 func (kv *ShardKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	op := Op{Type: opClient, Key: args.Key, Value: args.Value, Op: args.Op,
-		ClientId: args.ClientId, Seq: args.Seq}
+		ClientId: args.ClientId, Seq: args.Seq, ConfigNum: args.ConfigNum}
 	res := kv.submit(op)
 	reply.Err = res.Err
 }
@@ -393,12 +407,11 @@ func (kv *ShardKV) GetShard(args *GetShardArgs, reply *GetShardReply) {
 		reply.Err = ErrWrongGroup
 		return
 	}
-	// We must have installed the requester's config (so we have stopped
-	// accepting client ops for this shard) and must no longer own it.
-	if args.ConfigNum > kv.cfg.Num {
-		reply.Err = ErrWrongGroup
-		return
-	}
+	// Do NOT compare config numbers here: groups advance at different speeds,
+	// and requiring the old owner to have caught up to the requester's config
+	// creates a cross-group wait cycle that deadlocks migrations. The shard
+	// state alone tells us the data is frozen and final (stPushing means we
+	// already stopped accepting client ops for it).
 	if kv.cfg.Shards[args.Shard] == kv.gid {
 		reply.Err = ErrWrongGroup
 		return
@@ -415,13 +428,11 @@ func (kv *ShardKV) DeleteShard(args *DeleteShardArgs, reply *DeleteShardReply) {
 		return
 	}
 	kv.mu.Lock()
-	num := kv.cfg.Num
 	st := kv.status[args.Shard]
 	kv.mu.Unlock()
-	if num < args.ConfigNum {
-		reply.Err = ErrWrongGroup
-		return
-	}
+	// As with GetShard, judge purely by shard state, not config numbers, to
+	// avoid a cross-group wait cycle. stPushing means our copy is frozen and
+	// the new owner has already installed the data, so it is safe to drop.
 	if st != stPushing {
 		reply.Err = OK
 		return
@@ -467,10 +478,12 @@ func (kv *ShardKV) sendDelete(servers []string, shard, num int) bool {
 	return false
 }
 
-// configPoller pulls new configurations from the shardctrler, one at a time.
+// configPoller installs configurations strictly in order, one at a time.
 // A config is installed only once every shard we still need to pull has its
-// data (no stPulling shards). Shards we are giving away (stPushing) do not
-// block, so an old owner can always catch up and serve pulls.
+// data (no stPulling shards): this guarantees a group never serves a shard
+// under a config whose migration is incomplete. Shards being given away
+// (stPushing) do NOT block config advance, otherwise an old owner waiting for
+// a delete notification could never catch up and would deadlock its pullers.
 func (kv *ShardKV) configPoller() {
 	for !kv.killed() {
 		if _, isLeader := kv.rf.GetState(); !isLeader {
